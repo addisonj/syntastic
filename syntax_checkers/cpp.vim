@@ -25,16 +25,46 @@ if !executable('g++')
 endif
 
 function! SyntaxCheckers_cpp_GetLocList()
-    let makeprg = 'g++ -fsyntax-only '.shellescape(expand('%'))
+    if exists('g:syntastic_cpp_user_config')
+        let useropts = SyntaxCheckers_cpp_ParseConfig()
+    else
+        let useropts = ''
+    endif
+
+    let makeprg = 'g++ -fsyntax-only '. useropts .shellescape(expand('%'))
     let errorformat =  '%-G%f:%s:,%f:%l:%c: %m,%f:%l: %m'
 
     if expand('%') =~? '\%(.h\|.hpp\|.hh\)$'
         if exists('g:syntastic_cpp_check_header')
-            let makeprg = 'g++ -c '.shellescape(expand('%'))
+            let makeprg = 'g++ -c '. useropts .shellescape(expand('%'))
         else
             return []
         endif
     endif
 
     return SyntasticMake({ 'makeprg': makeprg, 'errorformat': errorformat })
+endfunction
+
+" Borrowed from Rip-Rip/clang_complete
+function! SyntaxCheckers_cpp_ParseConfig()
+    let l:options = ''
+
+    let l:local_conf = findfile('.syntastic_cpp_config', getcwd() . ',.;')
+    if l:local_conf == '' || !filereadable(l:local_conf)
+        return l:options
+    endif
+
+    let l:opts = readfile(l:local_conf)
+    for l:opt in l:opts
+        if matchstr(l:opt, '\C-I\s*/') != ''
+            let l:opt = substitute(l:opt, '\C-I\s*\(/\%(\w\|\\\s\)*\)',
+                \ '-I' . '\1', 'g')
+        else
+	    " convert relative to absolute path so we can be in subdir
+            let l:opt = substitute(l:opt, '\C-I\s*\(\%(\w\|\\\s\)*\)',
+                \ '-I' . l:local_conf[:-22] . '\1', 'g')
+	endif
+        let l:options .= ' ' . l:opt
+        endfor
+    return l:options . ' '
 endfunction
